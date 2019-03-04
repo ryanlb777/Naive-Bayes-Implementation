@@ -1,0 +1,236 @@
+---
+title: "Using Naive Bayes Classifiers to Predict Income of the 1994 Census"
+author: "Ryan LeBon"
+date: "4/30/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this report, I will be trying to predict whether a person makes above or below $50,000, based on the 1994 census in the United States. The donors of the data set was from Ronny Kohavi and Barry Becker who do data mining and visualizations for Silicon Graphics. Extraction was done by Barry Becker from the 1994 Census database, it is also known as the [Adult Data Set](http://archive.ics.uci.edu/ml/datasets/Adult). A set of reasonably clean records was extracted using the following conditions: ((AAGE>16) && (AGI>100) && (AFNLWGT>1)&& (HRSWK>0)). 
+
+
+## Reading and preprocessing the data
+During the reading process, our data frame was created by using the data that was given to us on github through a csv file. I split the data set and created training and testing data sets so that they could be used throughout the report.
+```{r}
+
+dat <- read.csv("https://raw.githubusercontent.com/grbruns/cst383/master/1994-census-summary.csv")
+tr_rows <- sample(nrow(dat),0.75*nrow(dat))
+tr_dat <- dat[tr_rows,]
+te_dat <- dat[-tr_rows,]
+
+```
+
+## Libraries
+I used the libraries e1071 and rpart. The library e1071 gives access to the function naiveBayes() which computes the condition probabilities of a categorical class variable given independent predictor variables using the Bayes rule. The library rpart gives access to the function rpart() which helps develop the learning curve.
+```{r}
+library(e1071)
+library(rpart)
+```
+
+
+## Data exploration
+In this data exploration we will look at the features that are categorical which pertain to the individuals who have above or below $50,000. There are 32,561 rows in this data set. There approximately 14 attributes in this data set.
+
+```{r}
+summary(dat)
+```
+
+```{r}
+str(dat)
+```
+
+These are the ages of the data set. The mean of the ages is 38.58, which is represented by the dashed line. Note: frequency represents the number of people.
+```{r}
+hist(dat$age,col="orangered",main="Ages of census subjects",ylim=c(0,5000),xlab="Ages")
+abline(v=mean(dat$age),lty="dashed")
+```
+
+This is a barplot of males vs females in the dataset, clearly there are more males than females.
+```{r}
+barplot(sort(table(dat$sex),decreasing = T),main="Sex of census subjects",ylab="Frequency",col="orangered",beside=T,names.arg=c("Male","Female"),ylim=c(0,25000))
+```
+
+This is a histogram of how many hours people work per week. The mean is once again represented by the dashed line and the typical person works about 40.43 hours per week according to this data set.
+```{r}
+hist(dat$hours_per_week,col="orangered",xlab="hours",main="Working Hours of census subjects")
+abline(v=mean(dat$hours_per_week),lty=2)
+
+```
+
+This horizontal barplot shows the categories of working classes. Most of the people kept their information private.
+```{r}
+par(mar=c(5, 10, 4, 3))
+barplot(sort(table(dat$workclass),decreasing=T),horiz=T,las=1,col="orangered",xlim=c(0,25000),xlab="Frequency",main="Working Class of census subjects")
+```
+
+This shows the highest education level that the census subjects achieved while going to school.
+```{r}
+
+par(mar=c(5, 10, 4, 3))
+barplot(sort(table(dat$education),decreasing=T),horiz=T,las=1,col="orangered",xlim=c(0,12000),xlab="Frequency",main="Education Level of census subjects")
+
+```
+
+This shows the categories of the census subjects marital status during the time they took the survey.
+```{r}
+
+par(mar=c(5,10,4,3))
+barplot(sort(table(dat$marital_status),decreasing = T),horiz=T,las=1,xlim=c(0,20000),col="orangered",xlab="Frequency",main="Marital Status of census subjects")
+
+```
+
+This shows the categories of the census subjects race.
+```{r}
+
+par(mar=c(5,10,4,3))
+barplot(sort(table(dat$race),decreasing = T),horiz=T,las=1,xlim=c(0,30000),col="orangered",xlab="Frequency",main="Race of census subjects")
+
+```
+
+This is a double density plot of incomes that were greater or below $50k based on ages of the census subjects.
+```{r}
+
+plot(density(tr_dat$age[tr_dat$label=='>50K']),ylim=c(0,.04),col="green",xlab="age",main="Double Density Plot of Incomes")
+lines(density(tr_dat$age[tr_dat$label=='<=50K']),col="orangered")
+legend("topright",legend=c("Income > 50k","Income <= 50k"),col=c("green","orangered"),pch=8, cex=1)
+
+```
+
+
+
+## Fitting Model 1
+In this section I fitted the model using the function naiveBayes(). I built the model using all of the data from the dataset as Naive Bayes algorithm works well on all features and new features can be added easily. Since I am attempting Naive Bayes classification I set the type to 'class' when running my predictions.
+```{r}
+
+fit <- naiveBayes(label ~ .,data=tr_dat)
+predicted <- predict(fit, te_dat, type="class")
+actual <- te_dat$label
+summary(fit$tables)
+
+```
+
+
+```{r}
+
+prob_less_than_50 <- dnorm(1:100, mean = fit$tables$age[1,1] , sd = fit$tables$age[1,2] )
+prob_great_than_50 <- dnorm(1:100, mean = fit$tables$age[2,1] , sd = fit$tables$age[2,2] )
+plot(prob_less_than_50,ylim=c(0,.04),type="l",col="orangered",xlab="age",ylab="density",main="Double Density Plot of Naive Bayes Model 1")
+lines(prob_great_than_50,col="green")
+legend("topright",legend=c("Income > 50k","Income <= 50k"),col=c("green","orangered"),pch=8, cex=1)
+
+```
+
+
+## Confusion Matrix of Naive Bayes Model 1 
+
+```{r}
+
+table(actual, predicted)
+
+```
+
+## Accuracy of Naive Bayes Model 1
+The accuracy ran good on this model at 82%.
+```{r}
+
+mean(actual == predicted)
+
+```
+
+## Fitting Model 2
+
+This is the second model using naiveBayes(). On this model, I implemented the Naive Bayes algorithm on 3 features which included 'age', 'race' and 'hours_per_week'. 
+```{r}
+
+fit2 <- naiveBayes(label ~  age + race + hours_per_week,data=tr_dat)
+predicted2 <- predict(fit2, te_dat, type="class")
+actual2 <- te_dat$label
+summary(fit2$tables)
+
+```
+```{r}
+
+prob_less_than_50 <- dnorm(1:100, mean = fit2$tables$hours_per_week[1,1] , sd = fit2$tables$hours_per_week[1,2] )
+prob_great_than_50 <- dnorm(1:100, mean = fit2$tables$hours_per_week[2,1] , sd = fit2$tables$hours_per_week[2,2] )
+plot(prob_less_than_50,ylim=c(0,.04),type="l",col="orangered",xlab="hours per week",ylab="density",main="Double Density Plot of Naive Bayes Model 2")
+lines(prob_great_than_50,col="green")
+legend("topright",legend=c("Income > 50k","Income <= 50k"),col=c("green","orangered"),pch=8, cex=1)
+
+```
+
+## Confusion Matrix of Naive Bayes Model
+
+```{r}
+
+table(actual2, predicted2)
+
+```
+
+## Accuracy of Naive Bayes Model 2
+The accuracy of this model decreased when using 3 features instead of all of the features.
+```{r}
+
+mean(actual2 == predicted2)
+
+```
+
+
+## Learning Curve 
+
+```{r}
+
+create_learning_curve <- function(){
+
+  te_errs = c()
+  
+  tr_errs = c()
+  
+  te_actual = te_dat$label
+  
+  tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+  
+  for (tr_size in tr_sizes) {
+    
+    tr_dat1 = tr_dat[1:tr_size,]
+    
+    tr_actual = tr_dat1$label
+    
+    
+    fit = rpart(label ~ . , method = "class" , data = tr_dat)
+    
+    # error on training set
+    
+    tr_predicted = predict(fit, tr_dat1, type="class")
+    
+    err = mean(tr_actual != tr_predicted)
+    
+    tr_errs = c(tr_errs, err)
+    
+    
+    
+    # error on test set
+    
+    te_predicted = predict(fit, te_dat, type="class")
+    
+    err = mean(te_actual != te_predicted)
+    
+    te_errs = c(te_errs, err)
+    
+  }
+  
+  plot(tr_sizes , tr_errs   ,type = "b" , ylim = c(0.14, 0.17) , ylab = "error rate", xlab="Training Set Size", col = "forestgreen",main="Learning Curve")
+  par(new = TRUE)
+  plot(tr_sizes , te_errs   ,type = "b" ,ylim = c(0.14 , 0.17), ylab = "error rate" , xlab="Training Set Size", col = "orangered",main="Learning Curve")
+  
+  legend("topleft",c("training error","test error"),fill=c("forestgreen","orangered"),horiz=TRUE,cex=0.7)
+  }
+
+create_learning_curve()
+
+```
+
+## Conclusion
+In conclusion the objective to show whether a persons income was greater than or less than $50k was some what a success. The first model that I created using the training data showed an accuracy of 82% when using all of the features. The accuracy however went down when using less features. I believe that Naive Bayes classifier can compute a higher accuracy when more features are introduced to the mdoel. According to the book, Naive Bayes is used on real time applications such as classifying whether email is spam or ham, so this is an example of what happens when introducing new features, the model tends to learn and grow when new features are introduced.
